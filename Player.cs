@@ -2,21 +2,24 @@ using Godot;
 
 public partial class Player : Area2D{
 
-    private AnimatedSprite2D _animatedSprite2D;
-
     [Export]
     public int Speed {get; set;} = 400;
-
-    public Vector2 ScreenSize;
+    [Signal]
+    public delegate void HitEventHandler();    
+    
+    private AnimatedSprite2D _animatedSprite2D;
+    private Vector2 _screenSize;
+    private CollisionShape2D _collisionShape2D;
 
     // Ready method, load on game ready
     public override void _Ready(){
-
+        Hide();
         // Get the screen size
-        ScreenSize = GetViewportRect().Size;
+        _screenSize = GetViewportRect().Size;
 
         // Get the node on ready
         _animatedSprite2D = GetNode<AnimatedSprite2D>("AnimatedSprite2D");
+        _collisionShape2D = GetNode<CollisionShape2D>("CollisionShape2D");
     }
 
     // Process function, run every frame
@@ -32,10 +35,10 @@ public partial class Player : Area2D{
             velocity.X -= 1;
         }
         if (Input.IsActionPressed("move_up")){
-            velocity.Y += 1;
+            velocity.Y -= 1;
         }
         if (Input.IsActionPressed("move_down")){
-            velocity.Y -= 1;
+            velocity.Y += 1;
         }
 
         if (velocity.Length() > 0){
@@ -45,9 +48,16 @@ public partial class Player : Area2D{
 
         Position += velocity * (float)delta;
         Position = new Vector2(
-            x: Mathf.Clamp(Position.X, 0, ScreenSize.X),
-            y: Mathf.Clamp(Position.Y, 0, ScreenSize.Y)
+            x: Mathf.Clamp(Position.X, 0, _screenSize.X),
+            y: Mathf.Clamp(Position.Y, 0, _screenSize.Y)
         );
+
+        if (velocity.X < 0){
+            _animatedSprite2D.FlipH = true;
+        }
+        else{
+            _animatedSprite2D.FlipH = false;
+        }
 
         if (velocity.X != 0){
             _animatedSprite2D.Animation = "walk";
@@ -59,10 +69,19 @@ public partial class Player : Area2D{
             _animatedSprite2D.FlipV = velocity.Y > 0;
         }
 
-        if (velocity.X < 0){
-            _animatedSprite2D.FlipH = true;
-        } else {
-             _animatedSprite2D.FlipH = false;
-        }
+        
+    }
+    private void OnBodyEntered(Node2D body){
+
+        Hide(); // Player disappears after being hit.
+        EmitSignal(SignalName.Hit);
+        // Must be deferred as we can't change physics properties on a physics callback.
+        _animatedSprite2D.SetDeferred(CollisionShape2D.PropertyName.Disabled, true);
+    }
+
+    public void Start(Vector2 position){
+        Position = position;
+        Show();
+        _collisionShape2D.Disabled = false;
     }
 }
